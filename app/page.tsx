@@ -55,11 +55,13 @@ export default function Home() {
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("Bidón de Agua (20 Litros)");
-  const [customItem, setCustomItem] = useState("");
-  const [isCustom, setIsCustom] = useState(false);
 
-  // Estados de Monto, Calendario y Hora
+  // Selección múltiple de categorías
+  const [selectedIds, setSelectedIds] = useState<string[]>(["agua"]);
+  const [customItem, setCustomItem] = useState("");
+  const [showCustom, setShowCustom] = useState(false);
+
+  // Monto, Fecha y Hora
   const [amount, setAmount] = useState<string>("3500");
   const [purchaseDate, setPurchaseDate] = useState<string>("");
   const [purchaseTime, setPurchaseTime] = useState<string>("");
@@ -114,12 +116,50 @@ export default function Home() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // Registrar compra (con monto, fecha y hora)
+  // Alternar selección de una categoría (Permite elegir más de una)
+  const toggleCategory = (id: string) => {
+    setSelectedIds((prev) => {
+      let next: string[];
+      if (prev.includes(id)) {
+        if (prev.length === 1 && !showCustom) {
+          // Mantener al menos uno si no hay campo personalizado
+          return prev;
+        }
+        next = prev.filter((item) => item !== id);
+      } else {
+        next = [...prev, id];
+      }
+
+      // Sumar los valores sugeridos de los ítems seleccionados
+      const totalSuggested = next.reduce((sum, catId) => {
+        const cat = PURCHASE_CATEGORIES.find((c) => c.id === catId);
+        return sum + (cat?.defaultAmount || 0);
+      }, 0);
+
+      if (totalSuggested > 0) {
+        setAmount(String(totalSuggested));
+      }
+
+      return next;
+    });
+  };
+
+  // Obtener texto unificado de todos los ítems seleccionados
+  const getCombinedItemNames = () => {
+    const selectedCats = PURCHASE_CATEGORIES.filter((c) => selectedIds.includes(c.id));
+    const items = selectedCats.map((c) => c.name);
+    if (showCustom && customItem.trim()) {
+      items.push(customItem.trim());
+    }
+    return items.length > 0 ? items.join(" + ") : "Insumos de Oficina";
+  };
+
+  // Registrar compra (con insumos múltiples, monto, fecha y hora)
   const handleRegisterPurchase = async () => {
     if (submitting) return;
     setSubmitting(true);
 
-    const finalItem = isCustom && customItem.trim() ? customItem.trim() : selectedCategory;
+    const finalItem = getCombinedItemNames();
     const finalAmount = amount ? parseFloat(amount) : undefined;
 
     try {
@@ -143,11 +183,11 @@ export default function Home() {
           history: json.history,
           totalSpent: json.totalSpent,
         }));
-        const amountDisplay = finalAmount ? ` por $${finalAmount.toLocaleString("es-CL")}` : "";
+        const amountDisplay = finalAmount ? ` ($${finalAmount.toLocaleString("es-CL")})` : "";
         showToast(`¡Compra de "${finalItem}"${amountDisplay} registrada! Próximo turno: ${json.nextMember?.name}`, "success");
-        if (isCustom) {
+        if (showCustom) {
           setCustomItem("");
-          setIsCustom(false);
+          setShowCustom(false);
         }
       }
     } catch {
@@ -218,13 +258,15 @@ export default function Home() {
 
   const getInitials = (name?: string) => (name ? name.slice(0, 2).toUpperCase() : "--");
 
-  const getItemIcon = (itemName: string) => {
+  const getItemIcons = (itemName: string) => {
+    const icons: string[] = [];
     const lower = itemName.toLowerCase();
-    if (lower.includes("agua") || lower.includes("bidón")) return "💧";
-    if (lower.includes("café") || lower.includes("azúcar") || lower.includes("té")) return "☕";
-    if (lower.includes("limpieza") || lower.includes("aseo") || lower.includes("papel")) return "🧻";
-    if (lower.includes("snack") || lower.includes("fruta") || lower.includes("desayuno")) return "🍪";
-    return "📦";
+    if (lower.includes("agua") || lower.includes("bidón")) icons.push("💧");
+    if (lower.includes("café") || lower.includes("azúcar") || lower.includes("té")) icons.push("☕");
+    if (lower.includes("limpieza") || lower.includes("aseo") || lower.includes("papel")) icons.push("🧻");
+    if (lower.includes("snack") || lower.includes("fruta") || lower.includes("desayuno")) icons.push("🍪");
+    if (lower.includes("oficina") || lower.includes("papelería")) icons.push("📦");
+    return icons.length > 0 ? icons : ["🛍️"];
   };
 
   if (loading) {
@@ -239,7 +281,7 @@ export default function Home() {
   }
 
   const activeCount = data.members.filter((m) => m.isActive).length;
-  const currentItemLabel = isCustom && customItem.trim() ? customItem.trim() : selectedCategory;
+  const combinedLabel = getCombinedItemNames();
   const totalAccumulated = data.totalSpent || data.history.reduce((acc, h) => acc + (h.amount || 0), 0);
 
   return (
@@ -282,7 +324,7 @@ export default function Home() {
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Rotación justa con registro de gastos, fecha y hora
+                Rotación justa con selección múltiple, monto, fecha y hora
               </p>
             </div>
           </div>
@@ -364,22 +406,61 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* SELECTOR DE INSUMO A COMPRAR */}
+              {/* 1. SELECCIÓN MÚLTIPLE DE INSUMOS */}
               <div className="pt-5 border-t border-slate-100">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    1. Insumo adquirido
-                  </span>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      1. Insumos Adquiridos
+                    </span>
+                    <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                      Puedes marcar varios
+                    </span>
+                  </div>
                   <button
-                    onClick={() => setIsCustom(!isCustom)}
+                    onClick={() => setShowCustom(!showCustom)}
                     className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
                   >
-                    {isCustom ? "Volver a lista" : "+ Escribir otro"}
+                    {showCustom ? "Ocultar extra" : "+ Agregar otro"}
                   </button>
                 </div>
 
-                {isCustom ? (
-                  <div className="flex gap-2">
+                {/* Cuadrícula de Selección Múltiple */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                  {PURCHASE_CATEGORIES.map((cat) => {
+                    const isSelected = selectedIds.includes(cat.id);
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => toggleCategory(cat.id)}
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer relative ${
+                          isSelected
+                            ? "bg-blue-50 border-2 border-blue-500 shadow-sm shadow-blue-500/10"
+                            : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/70"
+                        }`}
+                      >
+                        {/* Checkmark cuando está seleccionado */}
+                        {isSelected && (
+                          <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-black shadow-2xs">
+                            ✓
+                          </span>
+                        )}
+                        <span className="text-lg block mb-0.5">{cat.icon}</span>
+                        <span className={`text-xs font-bold block leading-tight ${isSelected ? "text-blue-900 font-extrabold" : "text-slate-900"}`}>
+                          {cat.name}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
+                          {cat.detail}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Campo para Insumo Personalizado Extra */}
+                {showCustom && (
+                  <div className="mt-3 flex gap-2">
                     <input
                       type="text"
                       placeholder="Ej: Toallas de papel, té gourmet, pilas..."
@@ -388,45 +469,16 @@ export default function Home() {
                       className="flex-1 px-4 py-2.5 rounded-xl border border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm text-slate-900 font-medium"
                     />
                   </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-                    {PURCHASE_CATEGORIES.map((cat) => {
-                      const label = `${cat.name} (${cat.detail})`;
-                      const isSelected = selectedCategory === label;
-                      return (
-                        <button
-                          key={cat.id}
-                          onClick={() => {
-                            setSelectedCategory(label);
-                            setAmount(String(cat.defaultAmount));
-                          }}
-                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                            isSelected
-                              ? "bg-blue-50 border-blue-500 shadow-sm shadow-blue-500/10"
-                              : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/70"
-                          }`}
-                        >
-                          <span className="text-lg block mb-0.5">{cat.icon}</span>
-                          <span className={`text-xs font-bold block leading-tight ${isSelected ? "text-blue-900" : "text-slate-900"}`}>
-                            {cat.name}
-                          </span>
-                          <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
-                            {cat.detail}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
                 )}
               </div>
 
-              {/* NUEVA SECCIÓN: MONTO GASTADO + CALENDARIO Y HORA */}
+              {/* 2. MONTO GASTADO + CALENDARIO Y HORA */}
               <div className="mt-5 pt-5 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-12 gap-4">
-                {/* 2. Monto Gastado ($) */}
+                {/* Monto Gastado ($) */}
                 <div className="sm:col-span-5">
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                      2. Monto Gastado ($)
+                      2. Monto Total Gastado ($)
                     </label>
                   </div>
                   <div className="relative">
@@ -441,8 +493,8 @@ export default function Home() {
                       className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-sm font-bold text-slate-900 shadow-2xs"
                     />
                   </div>
-                  <div className="flex gap-1.5 mt-2">
-                    {[3500, 5000, 8500, 12000].map((val) => (
+                  <div className="flex gap-1.5 mt-2 flex-wrap">
+                    {[3500, 5000, 8500, 12000, 20500].map((val) => (
                       <button
                         key={val}
                         type="button"
@@ -455,7 +507,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* 3. Calendario y Hora */}
+                {/* Calendario y Hora */}
                 <div className="sm:col-span-7">
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -503,7 +555,7 @@ export default function Home() {
                   {data.members.map((m, idx) => {
                     const isCurrent = m.id === data.currentMember?.id;
                     const isNext = m.id === data.nextMember?.id;
-                    const colors = MEMBER_COLORS[m.name] || { bg: "bg-slate-100 text-slate-700" };
+                    const colors = MEMBER_COLORS[m.name] || { bg: "bg-slate-100 text-slate-700", text: "text-slate-700" };
 
                     return (
                       <div
@@ -555,7 +607,7 @@ export default function Home() {
                   ) : (
                     <>
                       <span>
-                        Registrar Compra: {currentItemLabel.split("(")[0]}
+                        Registrar Compra: {selectedIds.length > 2 ? `${selectedIds.length} insumos` : combinedLabel}
                         {amount ? ` ($${parseFloat(amount).toLocaleString("es-CL")})` : ""}
                       </span>
                       <span>🛒</span>
@@ -633,7 +685,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* TARJETA 2: HISTORIAL DE COMPRAS CON MONTO, FECHA Y HORA */}
+            {/* TARJETA 2: HISTORIAL DE COMPRAS CON ÍCONOS Y DETALLES */}
             <div className="card-premium rounded-3xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -641,7 +693,7 @@ export default function Home() {
                     Historial de Compras & Gastos
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Últimas compras con fecha, hora y costo
+                    Últimas compras registradas
                   </p>
                 </div>
                 <span className="text-xs px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
@@ -655,47 +707,58 @@ export default function Home() {
                     No hay compras registradas aún.
                   </div>
                 ) : (
-                  data.history.map((record, index) => (
-                    <div
-                      key={record.id}
-                      className="p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/80 hover:bg-white transition flex items-center justify-between gap-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-lg shadow-2xs">
-                          {getItemIcon(record.item)}
-                        </span>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-bold text-slate-900">
-                              {record.buyerName}
+                  data.history.map((record, index) => {
+                    const icons = getItemIcons(record.item);
+
+                    return (
+                      <div
+                        key={record.id}
+                        className="p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/80 hover:bg-white transition flex items-center justify-between gap-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex -space-x-1">
+                            {icons.map((ic, i) => (
+                              <span
+                                key={i}
+                                className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-sm shadow-2xs"
+                              >
+                                {ic}
+                              </span>
+                            ))}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-bold text-slate-900">
+                                {record.buyerName}
+                              </span>
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-slate-200/70 text-slate-600">
+                                #{index + 1}
+                              </span>
+                            </div>
+                            <span className="text-xs text-slate-600 font-medium block">
+                              {record.item}
                             </span>
-                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-slate-200/70 text-slate-600">
-                              #{index + 1}
+                            <span className="text-[11px] text-slate-400 font-medium block mt-0.5">
+                              📅 {record.timestamp}
                             </span>
                           </div>
-                          <span className="text-xs text-slate-600 font-medium block">
-                            {record.item}
-                          </span>
-                          <span className="text-[11px] text-slate-400 font-medium block mt-0.5">
-                            📅 {record.timestamp}
-                          </span>
+                        </div>
+
+                        {/* Monto Gastado Destacado */}
+                        <div className="text-right">
+                          {record.amount ? (
+                            <span className="text-sm font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl inline-block shadow-2xs">
+                              ${record.amount.toLocaleString("es-CL")}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">
+                              Sin monto
+                            </span>
+                          )}
                         </div>
                       </div>
-
-                      {/* Monto Gastado Destacado */}
-                      <div className="text-right">
-                        {record.amount ? (
-                          <span className="text-sm font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl inline-block shadow-2xs">
-                            ${record.amount.toLocaleString("es-CL")}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-400 italic">
-                            Sin monto
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
