@@ -1,0 +1,57 @@
+@startuml flujo_turnos_insumos
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 12
+skinparam ArrowColor #0284C7
+skinparam ActivityBorderColor #0284C7
+skinparam ActivityBackgroundColor #F0F9FF
+skinparam ActivityFontSize 12
+
+title Flujo de Rotación de Turnos y Notificación de Insumos (Next.js)
+
+|Usuario (Frontend Mobile)|
+start
+:Presiona botón "Registrar Compra";
+:Frontend envía petición HTTP:\n**POST /api/turnos** { action: "register" };
+
+|API Route (Next.js)|
+:Recibe petición en handler POST;
+:Obtiene usuario actual (**state.currentMember**);
+
+partition "Persistencia de Compra" {
+  :Crea registro de compra con timestamp e insumo;
+  :Inserta registro al inicio de **state.history**;
+  :Trunca historial a las últimas compras;
+}
+
+partition "Cálculo de Siguiente Turno (Rotación)" {
+  :Calcular índice candidato:\n**candidate = (currentIndex + 1) % total**;\n// Rotación entre Fanny -> Roberto -> Erick -> Ingrid
+  
+  while (¿El miembro en candidate está activo?) is (No / Vacaciones)
+    :Saltar al siguiente índice:\n**candidate = (candidate + 1) % total**;
+  endwhile (Sí / Disponible)
+
+  :Asigna nuevo índice:\n**state.currentIndex = candidate**;
+  :Obtiene nuevo turno actual y próximo turno;
+}
+
+fork
+  partition "Disparo Webhook" {
+    :Formatea mensaje para grupo;\n"💧 [Usuario] compró agua. Próximo turno: [Siguiente]";
+    :Dispara Webhook asíncrono\n(Telegram Bot API / WhatsApp Cloud API);
+  }
+fork again
+  partition "Respuesta al Cliente" {
+    :Retorna respuesta HTTP 200 OK con JSON\n{ currentMember, nextMember, history };
+  }
+end fork
+
+|Usuario (Frontend Mobile)|
+:Frontend actualiza el estado de React;
+:Tarjeta principal muestra nuevo **Turno Actual**;
+:Texto secundario actualiza **Próximo Turno**;
+:Lista inferior actualiza el **Historial de últimas 3 compras**;
+:Muestra alerta visual de confirmación;
+stop
+
+@enduml
