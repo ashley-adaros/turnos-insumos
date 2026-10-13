@@ -11,6 +11,9 @@ export interface PurchaseRecord {
   buyerName: string;
   timestamp: string;
   item: string;
+  amount?: number;
+  date?: string;
+  time?: string;
 }
 
 interface TurnState {
@@ -21,7 +24,7 @@ interface TurnState {
 
 // ============================================================================
 // ALMACENAMIENTO EN MEMORIA TEMPORAL (MOCK DATA)
-// Miembros oficiales del equipo: Fanny, Roberto, Erick, Ingrid
+// Miembros oficiales del equipo: Fanny, Roberto, Erick, Ingrid, Alejandro
 // ============================================================================
 const globalStore = globalThis as unknown as { __TURNO_STATE__?: TurnState };
 
@@ -41,20 +44,29 @@ if (!globalStore.__TURNO_STATE__ || globalStore.__TURNO_STATE__.members.length !
       {
         id: "mock-1",
         buyerName: "Alejandro",
-        timestamp: "Hace 4 días",
+        timestamp: "10 oct, 11:30",
         item: "Bidón de Agua 20L",
+        amount: 3500,
+        date: "2026-10-10",
+        time: "11:30",
       },
       {
         id: "mock-2",
         buyerName: "Ingrid",
-        timestamp: "Hace 11 días",
+        timestamp: "03 oct, 15:45",
         item: "Café en Grano & Azúcar",
+        amount: 8900,
+        date: "2026-10-03",
+        time: "15:45",
       },
       {
         id: "mock-3",
         buyerName: "Erick",
-        timestamp: "Hace 18 días",
+        timestamp: "25 sep, 09:15",
         item: "Insumos de Limpieza & Papel",
+        amount: 12400,
+        date: "2026-09-25",
+        time: "09:15",
       },
     ],
   };
@@ -82,40 +94,12 @@ function getNextActiveIndex(fromIndex: number, members: Member[]): number {
 async function triggerGroupNotification(
   buyer: Member,
   nextMember: Member,
-  itemPurchased: string
+  itemPurchased: string,
+  amount?: number
 ) {
-  /*
-  -----------------------------------------------------------------------------
-  TODO: INYECCIÓN DE WEBHOOK (TELEGRAM / WHATSAPP)
-  -----------------------------------------------------------------------------
-  Ejemplo Telegram Bot API:
-  const telegramMessage = `💧 *Turno de Insumos Actualizado*\n\n` +
-    `✅ *${buyer.name}* acaba de comprar: ${itemPurchased}.\n` +
-    `👉 *Próximo turno:* ${nextMember.name}`;
-
-  await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: process.env.TELEGRAM_GROUP_CHAT_ID,
-      text: telegramMessage,
-      parse_mode: "Markdown",
-    }),
-  });
-
-  Ejemplo WhatsApp Cloud API (Meta):
-  await fetch(`https://graph.facebook.com/v19.0/${process.env.WA_PHONE_NUMBER_ID}/messages`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${process.env.WA_ACCESS_TOKEN}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ ... })
-  });
-  -----------------------------------------------------------------------------
-  */
+  const amountText = amount ? ` por $${amount.toLocaleString("es-CL")}` : "";
   console.log(
-    `[WEBHOOK TRIGGERED] 🔔 ${buyer.name} registró compra de ${itemPurchased}. Próximo turno: ${nextMember.name}`
+    `[WEBHOOK TRIGGERED] 🔔 ${buyer.name} registró compra de ${itemPurchased}${amountText}. Próximo turno: ${nextMember.name}`
   );
 }
 
@@ -127,23 +111,25 @@ export async function GET() {
   const currentMember = state.members[state.currentIndex];
   const nextIndex = getNextActiveIndex(state.currentIndex, state.members);
   const nextMember = state.members[nextIndex];
+  const totalSpent = state.history.reduce((sum, h) => sum + (h.amount || 0), 0);
 
   return NextResponse.json({
     currentMember,
     nextMember,
     members: state.members,
-    history: state.history.slice(0, 3),
+    history: state.history.slice(0, 5),
+    totalSpent,
   });
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({ action: "register" }));
-    const { action = "register", memberId, item } = body;
+    const { action = "register", memberId, item, amount, date, time } = body;
 
     const currentMember = state.members[state.currentIndex];
 
-    // 1. REGISTRAR COMPRA (Rotación)
+    // 1. REGISTRAR COMPRA (Rotación + Monto + Fecha + Hora)
     if (action === "register") {
       const nextIndex = getNextActiveIndex(state.currentIndex, state.members);
       const nextMember = state.members[nextIndex];
@@ -152,44 +138,67 @@ export async function POST(request: Request) {
         ? item.trim() 
         : "Insumos de Oficina";
 
-      const newPurchase: PurchaseRecord = {
-        id: `pur-${Date.now()}`,
-        buyerName: currentMember.name,
-        timestamp: new Date().toLocaleDateString("es-ES", {
+      let formattedDate = "";
+      if (date && time) {
+        const parts = date.split("-");
+        const monthNames = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+        const mIndex = parseInt(parts[1], 10) - 1;
+        formattedDate = `${parseInt(parts[2], 10)} ${monthNames[mIndex] || parts[1]}, ${time}`;
+      } else {
+        formattedDate = new Date().toLocaleDateString("es-ES", {
           day: "2-digit",
           month: "short",
           hour: "2-digit",
           minute: "2-digit",
-        }),
+        });
+      }
+
+      const parsedAmount = typeof amount === "number" 
+        ? amount 
+        : (typeof amount === "string" ? parseFloat(amount.replace(/[^0-9.]/g, "")) : undefined);
+
+      const newPurchase: PurchaseRecord = {
+        id: `pur-${Date.now()}`,
+        buyerName: currentMember.name,
+        timestamp: formattedDate,
         item: itemPurchased,
+        amount: !isNaN(parsedAmount as number) ? parsedAmount : undefined,
+        date: date || new Date().toISOString().split("T")[0],
+        time: time || new Date().toTimeString().slice(0, 5),
       };
 
       state.history.unshift(newPurchase);
       state.currentIndex = nextIndex;
 
-      await triggerGroupNotification(currentMember, nextMember, newPurchase.item);
+      await triggerGroupNotification(currentMember, nextMember, newPurchase.item, newPurchase.amount);
+
+      const totalSpent = state.history.reduce((sum, h) => sum + (h.amount || 0), 0);
 
       return NextResponse.json({
         success: true,
         message: `Compra de "${itemPurchased}" registrada para ${currentMember.name}. Turno asignado a ${nextMember.name}`,
         currentMember: state.members[state.currentIndex],
         nextMember: state.members[getNextActiveIndex(state.currentIndex, state.members)],
-        history: state.history.slice(0, 3),
+        history: state.history.slice(0, 5),
+        totalSpent,
       });
     }
 
-    // 2. SALTAR TURNO MANUALMENTE (Ausencia imprevista)
+    // 2. SALTAR TURNO MANUALMENTE
     if (action === "skip") {
       const skippedMember = currentMember;
       const nextIndex = getNextActiveIndex(state.currentIndex, state.members);
       state.currentIndex = nextIndex;
+
+      const totalSpent = state.history.reduce((sum, h) => sum + (h.amount || 0), 0);
 
       return NextResponse.json({
         success: true,
         message: `Turno saltado de ${skippedMember.name}`,
         currentMember: state.members[state.currentIndex],
         nextMember: state.members[getNextActiveIndex(state.currentIndex, state.members)],
-        history: state.history.slice(0, 3),
+        history: state.history.slice(0, 5),
+        totalSpent,
       });
     }
 
@@ -205,12 +214,15 @@ export async function POST(request: Request) {
         }
       }
 
+      const totalSpent = state.history.reduce((sum, h) => sum + (h.amount || 0), 0);
+
       return NextResponse.json({
         success: true,
         members: state.members,
         currentMember: state.members[state.currentIndex],
         nextMember: state.members[getNextActiveIndex(state.currentIndex, state.members)],
-        history: state.history.slice(0, 3),
+        history: state.history.slice(0, 5),
+        totalSpent,
       });
     }
 

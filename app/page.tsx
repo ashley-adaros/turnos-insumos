@@ -13,6 +13,9 @@ interface PurchaseRecord {
   buyerName: string;
   timestamp: string;
   item: string;
+  amount?: number;
+  date?: string;
+  time?: string;
 }
 
 interface TurnData {
@@ -20,24 +23,25 @@ interface TurnData {
   nextMember: Member | null;
   members: Member[];
   history: PurchaseRecord[];
+  totalSpent?: number;
 }
 
-// Paleta de colores armoniosa para los avatares
-const MEMBER_COLORS: Record<string, { bg: string; text: string; ring: string }> = {
-  Fanny: { bg: "bg-pink-100 text-pink-700", ring: "ring-pink-300", text: "text-pink-600" },
-  Roberto: { bg: "bg-blue-100 text-blue-700", ring: "ring-blue-300", text: "text-blue-600" },
-  Erick: { bg: "bg-amber-100 text-amber-700", ring: "ring-amber-300", text: "text-amber-600" },
-  Ingrid: { bg: "bg-emerald-100 text-emerald-700", ring: "ring-emerald-300", text: "text-emerald-600" },
-  Alejandro: { bg: "bg-indigo-100 text-indigo-700", ring: "ring-indigo-300", text: "text-indigo-600" },
+// Colores armoniosos para los avatares
+const MEMBER_COLORS: Record<string, { bg: string; text: string }> = {
+  Fanny: { bg: "bg-pink-100 text-pink-700", text: "text-pink-600" },
+  Roberto: { bg: "bg-blue-100 text-blue-700", text: "text-blue-600" },
+  Erick: { bg: "bg-amber-100 text-amber-700", text: "text-amber-600" },
+  Ingrid: { bg: "bg-emerald-100 text-emerald-700", text: "text-emerald-600" },
+  Alejandro: { bg: "bg-indigo-100 text-indigo-700", text: "text-indigo-600" },
 };
 
-// Categorías de compras organizadas como tarjetas interactivas
+// Categorías de compras habituales con precios sugeridos comunes
 const PURCHASE_CATEGORIES = [
-  { id: "agua", name: "Bidón de Agua", detail: "20 Litros", icon: "💧" },
-  { id: "cafe", name: "Café & Azúcar", detail: "Despensa y té", icon: "☕" },
-  { id: "limpieza", name: "Aseo & Baño", detail: "Papel y jabón", icon: "🧻" },
-  { id: "snacks", name: "Snacks & Fruta", detail: "Desayuno", icon: "🍪" },
-  { id: "general", name: "Insumos Oficina", detail: "Papelería", icon: "📦" },
+  { id: "agua", name: "Bidón de Agua", detail: "20 Litros", icon: "💧", defaultAmount: 3500 },
+  { id: "cafe", name: "Café & Azúcar", detail: "Despensa y té", icon: "☕", defaultAmount: 8500 },
+  { id: "limpieza", name: "Aseo & Baño", detail: "Papel y jabón", icon: "🧻", defaultAmount: 12000 },
+  { id: "snacks", name: "Snacks & Fruta", detail: "Desayuno", icon: "🍪", defaultAmount: 6000 },
+  { id: "general", name: "Insumos Oficina", detail: "Papelería", icon: "📦", defaultAmount: 15000 },
 ];
 
 export default function Home() {
@@ -46,6 +50,7 @@ export default function Home() {
     nextMember: null,
     members: [],
     history: [],
+    totalSpent: 0,
   });
 
   const [loading, setLoading] = useState(true);
@@ -53,7 +58,26 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState("Bidón de Agua (20 Litros)");
   const [customItem, setCustomItem] = useState("");
   const [isCustom, setIsCustom] = useState(false);
+
+  // Estados de Monto, Calendario y Hora
+  const [amount, setAmount] = useState<string>("3500");
+  const [purchaseDate, setPurchaseDate] = useState<string>("");
+  const [purchaseTime, setPurchaseTime] = useState<string>("");
+
   const [toast, setToast] = useState<{ msg: string; type: "success" | "info" | "error" } | null>(null);
+
+  // Inicializar fecha y hora actual local
+  useEffect(() => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const hh = String(now.getHours()).padStart(2, "0");
+    const min = String(now.getMinutes()).padStart(2, "0");
+
+    setPurchaseDate(`${yyyy}-${mm}-${dd}`);
+    setPurchaseTime(`${hh}:${min}`);
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -73,23 +97,42 @@ export default function Home() {
     fetchData();
   }, []);
 
+  const resetToCurrentDateTime = () => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const hh = String(now.getHours()).padStart(2, "0");
+    const min = String(now.getMinutes()).padStart(2, "0");
+
+    setPurchaseDate(`${yyyy}-${mm}-${dd}`);
+    setPurchaseTime(`${hh}:${min}`);
+  };
+
   const showToast = (msg: string, type: "success" | "info" | "error" = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 4000);
   };
 
-  // Registrar compra (rotación de turno)
+  // Registrar compra (con monto, fecha y hora)
   const handleRegisterPurchase = async () => {
     if (submitting) return;
     setSubmitting(true);
 
     const finalItem = isCustom && customItem.trim() ? customItem.trim() : selectedCategory;
+    const finalAmount = amount ? parseFloat(amount) : undefined;
 
     try {
       const res = await fetch("/api/turnos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "register", item: finalItem }),
+        body: JSON.stringify({
+          action: "register",
+          item: finalItem,
+          amount: finalAmount,
+          date: purchaseDate,
+          time: purchaseTime,
+        }),
       });
       const json = await res.json();
       if (res.ok) {
@@ -98,8 +141,10 @@ export default function Home() {
           currentMember: json.currentMember,
           nextMember: json.nextMember,
           history: json.history,
+          totalSpent: json.totalSpent,
         }));
-        showToast(`¡Compra de "${finalItem}" registrada! Próximo turno: ${json.nextMember?.name}`, "success");
+        const amountDisplay = finalAmount ? ` por $${finalAmount.toLocaleString("es-CL")}` : "";
+        showToast(`¡Compra de "${finalItem}"${amountDisplay} registrada! Próximo turno: ${json.nextMember?.name}`, "success");
         if (isCustom) {
           setCustomItem("");
           setIsCustom(false);
@@ -128,6 +173,8 @@ export default function Home() {
           ...prev,
           currentMember: json.currentMember,
           nextMember: json.nextMember,
+          history: json.history,
+          totalSpent: json.totalSpent,
         }));
         showToast("Turno saltado al siguiente compañero: " + json.currentMember?.name, "info");
       }
@@ -154,6 +201,7 @@ export default function Home() {
           currentMember: json.currentMember,
           nextMember: json.nextMember,
           history: json.history,
+          totalSpent: json.totalSpent,
         }));
         const target = json.members.find((m: Member) => m.id === id);
         showToast(
@@ -192,6 +240,7 @@ export default function Home() {
 
   const activeCount = data.members.filter((m) => m.isActive).length;
   const currentItemLabel = isCustom && customItem.trim() ? customItem.trim() : selectedCategory;
+  const totalAccumulated = data.totalSpent || data.history.reduce((acc, h) => acc + (h.amount || 0), 0);
 
   return (
     <div className="min-h-screen bg-canvas py-8 px-4 sm:px-6 lg:px-8 flex flex-col justify-between">
@@ -217,7 +266,7 @@ export default function Home() {
 
       {/* Contenedor Principal */}
       <div className="max-w-6xl mx-auto w-full">
-        {/* HEADER SUPERIOR */}
+        {/* HEADER SUPERIOR CON METRICAS */}
         <header className="card-premium rounded-2xl p-4 sm:p-5 mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 text-lg font-black">
@@ -233,15 +282,21 @@ export default function Home() {
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Rotación justa para agua, café, despensa, limpieza y suministros de oficina
+                Rotación justa con registro de gastos, fecha y hora
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
+            {/* Métrica de gasto total acumulado */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800">
+              <span>💰 Total Registrado:</span>
+              <span className="text-emerald-900">${totalAccumulated.toLocaleString("es-CL")}</span>
+            </div>
+
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>{activeCount} de {data.members.length} miembros activos</span>
+              <span>{activeCount} de {data.members.length} activos</span>
             </div>
 
             <button
@@ -258,7 +313,7 @@ export default function Home() {
 
         {/* CUERPO DEL DASHBOARD (GRID) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* COLUMNA IZQUIERDA: HERO CARD (TURNO ACTUAL Y ACCIONES) */}
+          {/* COLUMNA IZQUIERDA: HERO CARD (TURNO ACTUAL Y FORMULARIO DE COMPRA) */}
           <section className="lg:col-span-7 flex flex-col gap-6">
             <div className="card-premium rounded-3xl p-6 sm:p-7 relative overflow-hidden">
               {/* Encabezado del Hero */}
@@ -274,7 +329,7 @@ export default function Home() {
               </div>
 
               {/* Perfil del Responsable Actual */}
-              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 py-6">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 py-5">
                 {/* Avatar Circular con iniciales */}
                 <div className="relative">
                   <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 p-0.5 shadow-lg shadow-blue-500/15 flex items-center justify-center">
@@ -313,7 +368,7 @@ export default function Home() {
               <div className="pt-5 border-t border-slate-100">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    ¿Qué se va a comprar en este turno?
+                    1. Insumo adquirido
                   </span>
                   <button
                     onClick={() => setIsCustom(!isCustom)}
@@ -341,7 +396,10 @@ export default function Home() {
                       return (
                         <button
                           key={cat.id}
-                          onClick={() => setSelectedCategory(label)}
+                          onClick={() => {
+                            setSelectedCategory(label);
+                            setAmount(String(cat.defaultAmount));
+                          }}
                           className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                             isSelected
                               ? "bg-blue-50 border-blue-500 shadow-sm shadow-blue-500/10"
@@ -362,6 +420,76 @@ export default function Home() {
                 )}
               </div>
 
+              {/* NUEVA SECCIÓN: MONTO GASTADO + CALENDARIO Y HORA */}
+              <div className="mt-5 pt-5 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-12 gap-4">
+                {/* 2. Monto Gastado ($) */}
+                <div className="sm:col-span-5">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      2. Monto Gastado ($)
+                    </label>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-black text-sm">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-sm font-bold text-slate-900 shadow-2xs"
+                    />
+                  </div>
+                  <div className="flex gap-1.5 mt-2">
+                    {[3500, 5000, 8500, 12000].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setAmount(String(val))}
+                        className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-[10px] font-semibold text-slate-600 transition cursor-pointer"
+                      >
+                        ${val.toLocaleString("es-CL")}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Calendario y Hora */}
+                <div className="sm:col-span-7">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      3. Fecha y Hora de Compra
+                    </label>
+                    <button
+                      type="button"
+                      onClick={resetToCurrentDateTime}
+                      className="text-[11px] text-blue-600 font-semibold hover:underline cursor-pointer"
+                    >
+                      Ahora mismo
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={purchaseDate}
+                        onChange={(e) => setPurchaseDate(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-xs font-semibold text-slate-800 shadow-2xs"
+                      />
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="time"
+                        value={purchaseTime}
+                        onChange={(e) => setPurchaseTime(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-xs font-semibold text-slate-800 shadow-2xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* FILA DE TURNOS (ORDEN DE ROTACIÓN) */}
               <div className="mt-5 pt-5 border-t border-slate-100">
                 <div className="flex items-center justify-between mb-3">
@@ -375,7 +503,7 @@ export default function Home() {
                   {data.members.map((m, idx) => {
                     const isCurrent = m.id === data.currentMember?.id;
                     const isNext = m.id === data.nextMember?.id;
-                    const colors = MEMBER_COLORS[m.name] || { bg: "bg-slate-100 text-slate-700", text: "text-slate-700" };
+                    const colors = MEMBER_COLORS[m.name] || { bg: "bg-slate-100 text-slate-700" };
 
                     return (
                       <div
@@ -426,7 +554,10 @@ export default function Home() {
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <>
-                      <span>Registrar Compra: {currentItemLabel.split("(")[0]}</span>
+                      <span>
+                        Registrar Compra: {currentItemLabel.split("(")[0]}
+                        {amount ? ` ($${parseFloat(amount).toLocaleString("es-CL")})` : ""}
+                      </span>
                       <span>🛒</span>
                     </>
                   )}
@@ -445,7 +576,7 @@ export default function Home() {
             </div>
           </section>
 
-          {/* COLUMNA DERECHA: EQUIPO Y HISTORIAL */}
+          {/* COLUMNA DERECHA: EQUIPO Y HISTORIAL CON DETALLES FINANCIEROS */}
           <section className="lg:col-span-5 flex flex-col gap-6">
             {/* TARJETA 1: DISPONIBILIDAD DEL EQUIPO */}
             <div className="card-premium rounded-3xl p-6">
@@ -502,19 +633,19 @@ export default function Home() {
               </div>
             </div>
 
-            {/* TARJETA 2: HISTORIAL DE COMPRAS */}
+            {/* TARJETA 2: HISTORIAL DE COMPRAS CON MONTO, FECHA Y HORA */}
             <div className="card-premium rounded-3xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-                    Historial de Compras
+                    Historial de Compras & Gastos
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Últimas 3 compras registradas
+                    Últimas compras con fecha, hora y costo
                   </p>
                 </div>
-                <span className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-bold">
-                  Registro
+                <span className="text-xs px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                  Finanzas
                 </span>
               </div>
 
@@ -527,10 +658,10 @@ export default function Home() {
                   data.history.map((record, index) => (
                     <div
                       key={record.id}
-                      className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/80 hover:bg-white transition"
+                      className="p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/80 hover:bg-white transition flex items-center justify-between gap-3"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-base shadow-2xs">
+                        <span className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-lg shadow-2xs">
                           {getItemIcon(record.item)}
                         </span>
                         <div>
@@ -538,20 +669,30 @@ export default function Home() {
                             <span className="text-sm font-bold text-slate-900">
                               {record.buyerName}
                             </span>
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-200/70 text-slate-600">
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-slate-200/70 text-slate-600">
                               #{index + 1}
                             </span>
                           </div>
-                          <span className="text-xs text-slate-600 font-medium">
+                          <span className="text-xs text-slate-600 font-medium block">
                             {record.item}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-medium block mt-0.5">
+                            📅 {record.timestamp}
                           </span>
                         </div>
                       </div>
 
+                      {/* Monto Gastado Destacado */}
                       <div className="text-right">
-                        <span className="text-xs font-mono text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200 block font-semibold shadow-2xs">
-                          {record.timestamp}
-                        </span>
+                        {record.amount ? (
+                          <span className="text-sm font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl inline-block shadow-2xs">
+                            ${record.amount.toLocaleString("es-CL")}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">
+                            Sin monto
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))
@@ -563,10 +704,10 @@ export default function Home() {
 
         {/* FOOTER */}
         <footer className="mt-8 pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 text-center">
-          <p>© {new Date().getFullYear()} HydroTurn • Sistema de Compras de Oficina</p>
+          <p>© {new Date().getFullYear()} HydroTurn • Sistema de Compras & Gastos de Oficina</p>
           <p className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            Webhook Telegram / WhatsApp preparado para alertas
+            Notificaciones y registro contable activos
           </p>
         </footer>
       </div>
