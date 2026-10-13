@@ -202,6 +202,7 @@ export default function Home() {
       if (res.ok) {
         setData((prev) => ({
           ...prev,
+          members: json.members || prev.members,
           currentMember: json.currentMember,
           nextMember: json.nextMember,
         }));
@@ -472,9 +473,25 @@ export default function Home() {
 
                 {/* Información y Nombre */}
                 <div className="flex-1 text-center sm:text-left">
-                  <span className="text-xs uppercase font-extrabold tracking-wider text-slate-400 block mb-1">
-                    Responsable de la compra
-                  </span>
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
+                    <span className="text-xs uppercase font-extrabold tracking-wider text-slate-400">
+                      Responsable de la compra
+                    </span>
+                    <select
+                      value={data.currentMember?.id || ""}
+                      onChange={(e) => handleSetCurrentTurn(Number(e.target.value))}
+                      className="text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg px-2 py-0.5 cursor-pointer outline-none transition"
+                      title="Cambiar responsable de compra directamente acá arriba"
+                    >
+                      {data.members
+                        .filter((m) => m.isActive)
+                        .map((m) => (
+                          <option key={m.id} value={m.id}>
+                            🎯 Cambiar a: {m.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
                   <h2 className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight capitalize leading-none">
                     {data.currentMember?.name ?? "Sin Asignar"}
                   </h2>

@@ -249,7 +249,6 @@ export async function POST(request: Request) {
     if (action === "move_member" && typeof memberId === "number") {
       const { direction = "right" } = body;
       const index = state.members.findIndex((m) => m.id === memberId);
-      const currentMemberId = state.members[state.currentIndex]?.id;
 
       if (index !== -1) {
         const targetIndex = direction === "left" ? index - 1 : index + 1;
@@ -259,9 +258,10 @@ export async function POST(request: Request) {
           state.members[index] = state.members[targetIndex];
           state.members[targetIndex] = temp;
 
-          // Mantener el puntero del turno actual en la persona correcta
-          const newCurrentIdx = state.members.findIndex((m) => m.id === currentMemberId);
-          state.currentIndex = newCurrentIdx !== -1 ? newCurrentIdx : 0;
+          // Al reorganizar o mover integrantes en la fila, la posición #1 (o primer activo)
+          // pasa a ser el turno actual para que la cabecera "Turno Actual" se sincronice inmediatamente
+          const firstActive = state.members.findIndex((m) => m.isActive);
+          state.currentIndex = firstActive !== -1 ? firstActive : 0;
         }
       }
 
