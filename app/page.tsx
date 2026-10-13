@@ -35,6 +35,15 @@ const MEMBER_COLORS: Record<string, { bg: string; text: string }> = {
   Alejandro: { bg: "bg-indigo-100 text-indigo-700", text: "text-indigo-600" },
 };
 
+function getInitials(name: string): string {
+  if (!name) return "";
+  const parts = name.trim().split(" ");
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
 // Categorías de compras habituales con precios sugeridos comunes
 const PURCHASE_CATEGORIES = [
   { id: "agua", name: "Bidón de Agua", detail: "20 Litros", icon: "💧", defaultAmount: 3500 },
@@ -55,6 +64,11 @@ export default function Home() {
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  // Modo de edición y reordenamiento del equipo
+  const [isEditingOrder, setIsEditingOrder] = useState(false);
+  const [newMemberName, setNewMemberName] = useState("");
+  const [showAddMember, setShowAddMember] = useState(false);
 
   // Selección múltiple de categorías
   const [selectedIds, setSelectedIds] = useState<string[]>(["agua"]);
@@ -122,7 +136,6 @@ export default function Home() {
       let next: string[];
       if (prev.includes(id)) {
         if (prev.length === 1 && !showCustom) {
-          // Mantener al menos uno si no hay campo personalizado
           return prev;
         }
         next = prev.filter((item) => item !== id);
@@ -152,6 +165,77 @@ export default function Home() {
       items.push(customItem.trim());
     }
     return items.length > 0 ? items.join(" + ") : "Insumos de Oficina";
+  };
+
+  // Reordenar un integrante en la fila (mover a la izquierda o derecha)
+  const handleMoveMember = async (id: number, direction: "left" | "right") => {
+    try {
+      const res = await fetch("/api/turnos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "move_member", memberId: id, direction }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setData((prev) => ({
+          ...prev,
+          members: json.members,
+          currentMember: json.currentMember,
+          nextMember: json.nextMember,
+        }));
+        showToast("Orden de la fila actualizado", "info");
+      }
+    } catch {
+      showToast("Error al mover integrante", "error");
+    }
+  };
+
+  // Asignar el turno actual directamente a una persona
+  const handleSetCurrentTurn = async (id: number) => {
+    try {
+      const res = await fetch("/api/turnos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_current", memberId: id }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setData((prev) => ({
+          ...prev,
+          currentMember: json.currentMember,
+          nextMember: json.nextMember,
+        }));
+        showToast(`Turno actual fijado en: ${json.currentMember?.name}`, "success");
+      }
+    } catch {
+      showToast("Error al fijar turno", "error");
+    }
+  };
+
+  // Agregar un nuevo integrante
+  const handleAddMember = async () => {
+    if (!newMemberName.trim()) return;
+    try {
+      const res = await fetch("/api/turnos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "add_member", name: newMemberName.trim() }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setData((prev) => ({
+          ...prev,
+          members: json.members,
+          currentMember: json.currentMember,
+          nextMember: json.nextMember,
+        }));
+        setNewMemberName("");
+        setShowAddMember(false);
+        showToast("Nuevo compañero agregado al equipo", "success");
+      }
+    } catch {
+      showToast("Error al agregar integrante", "error");
+    }
   };
 
   // Registrar compra (con insumos múltiples, monto, fecha y hora)
@@ -324,7 +408,7 @@ export default function Home() {
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Rotación justa con selección múltiple, monto, fecha y hora
+                Rotación colaborativa con orden personalizable del equipo
               </p>
             </div>
           </div>
@@ -440,7 +524,6 @@ export default function Home() {
                             : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/70"
                         }`}
                       >
-                        {/* Checkmark cuando está seleccionado */}
                         {isSelected && (
                           <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-black shadow-2xs">
                             ✓
@@ -542,15 +625,64 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* FILA DE TURNOS (ORDEN DE ROTACIÓN) */}
+              {/* 3. FILA DE TURNOS DEL EQUIPO (ORDEN PERSONALIZABLE) */}
               <div className="mt-5 pt-5 border-t border-slate-100">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Fila de Turnos del Equipo
-                  </span>
-                  <span className="text-xs text-slate-400">Orden de rotación</span>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
+                      Fila de Turnos del Equipo
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      Rotación de izquierda a derecha (#1 ➔ #{data.members.length} ➔ vuelve al #1)
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingOrder(!isEditingOrder)}
+                      className={`text-xs px-2.5 py-1 rounded-lg border font-bold transition cursor-pointer flex items-center gap-1 ${
+                        isEditingOrder
+                          ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                          : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+                      }`}
+                    >
+                      <span>{isEditingOrder ? "✓ Listo" : "⚙️ Organizar Orden"}</span>
+                    </button>
+
+                    {isEditingOrder && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAddMember(!showAddMember)}
+                        className="text-xs px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold hover:bg-emerald-100 transition cursor-pointer"
+                      >
+                        + Nuevo
+                      </button>
+                    )}
+                  </div>
                 </div>
 
+                {/* Formulario rápido para agregar compañero en modo edición */}
+                {isEditingOrder && showAddMember && (
+                  <div className="mb-3 p-3 rounded-xl bg-slate-50 border border-slate-200 flex gap-2 animate-in fade-in">
+                    <input
+                      type="text"
+                      placeholder="Nombre del nuevo integrante..."
+                      value={newMemberName}
+                      onChange={(e) => setNewMemberName(e.target.value)}
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddMember}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition cursor-pointer"
+                    >
+                      Agregar
+                    </button>
+                  </div>
+                )}
+
+                {/* Tarjetas de Integrantes con Controles de Orden */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                   {data.members.map((m, idx) => {
                     const isCurrent = m.id === data.currentMember?.id;
@@ -560,35 +692,85 @@ export default function Home() {
                     return (
                       <div
                         key={m.id}
-                        className={`p-3 rounded-xl border text-center transition-all ${
+                        className={`p-2.5 rounded-xl border text-center transition-all relative ${
                           isCurrent
-                            ? "bg-blue-50/70 border-blue-500 shadow-xs"
+                            ? "bg-blue-50/80 border-2 border-blue-500 shadow-xs"
                             : isNext
                             ? "bg-white border-blue-200 shadow-2xs"
                             : !m.isActive
                             ? "bg-slate-50 border-slate-200 opacity-60"
-                            : "bg-white border-slate-200"
+                            : "bg-white border-slate-200 hover:border-slate-300"
                         }`}
                       >
-                        <div className="flex items-center justify-center mb-1.5">
-                          <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black ${colors.bg}`}>
+                        {/* Indicador de posición numérica */}
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-black px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-600">
+                            #{idx + 1}
+                          </span>
+
+                          {/* Botón para fijar turno directamente */}
+                          {!isCurrent && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetCurrentTurn(m.id)}
+                              title="Asignar turno a esta persona ahora"
+                              className="text-[9px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
+                            >
+                              🎯 Asignar
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Avatar */}
+                        <div className="flex items-center justify-center my-1">
+                          <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black ${colors.bg}`}>
                             {getInitials(m.name)}
                           </span>
                         </div>
+
                         <div className="text-xs font-bold text-slate-900 truncate">
                           {m.name}
                         </div>
+
+                        {/* Estado en el turno */}
                         <div className="text-[10px] font-semibold mt-1">
                           {isCurrent ? (
-                            <span className="text-blue-700 font-bold">● Actual</span>
+                            <span className="text-blue-700 font-extrabold bg-blue-100/70 px-1.5 py-0.5 rounded-md">
+                              ● En Turno
+                            </span>
                           ) : isNext ? (
-                            <span className="text-blue-600">Siguiente</span>
+                            <span className="text-blue-600 font-bold">Siguiente</span>
                           ) : !m.isActive ? (
                             <span className="text-rose-600 font-medium">🏖️ Ausente</span>
                           ) : (
-                            <span className="text-slate-400">#{idx + 1}</span>
+                            <span className="text-slate-400">En espera</span>
                           )}
                         </div>
+
+                        {/* Controles de Reordenamiento (Flechas Izquierda / Derecha) */}
+                        {isEditingOrder && (
+                          <div className="mt-2 pt-1.5 border-t border-slate-200/80 flex items-center justify-between gap-1">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => handleMoveMember(m.id, "left")}
+                              title="Mover antes en la fila"
+                              className="w-5 h-5 rounded flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+                            >
+                              ◀
+                            </button>
+                            <span className="text-[9px] font-bold text-slate-400">mover</span>
+                            <button
+                              type="button"
+                              disabled={idx === data.members.length - 1}
+                              onClick={() => handleMoveMember(m.id, "right")}
+                              title="Mover después en la fila"
+                              className="w-5 h-5 rounded flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+                            >
+                              ▶
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -607,7 +789,7 @@ export default function Home() {
                   ) : (
                     <>
                       <span>
-                        Registrar Compra: {selectedIds.length > 2 ? `${selectedIds.length} insumos` : combinedLabel}
+                        Registrar Compra: {selectedIds.length > 2 ? `${selectedIds.length} insumos` : getCombinedItemNames()}
                         {amount ? ` ($${parseFloat(amount).toLocaleString("es-CL")})` : ""}
                       </span>
                       <span>🛒</span>
@@ -770,7 +952,7 @@ export default function Home() {
           <p>© {new Date().getFullYear()} HydroTurn • Sistema de Compras & Gastos de Oficina</p>
           <p className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            Notificaciones y registro contable activos
+            Notificaciones y orden de turnos sincronizados
           </p>
         </footer>
       </div>

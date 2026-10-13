@@ -226,6 +226,97 @@ export async function POST(request: Request) {
       });
     }
 
+    // 4. FIJAR TURNO ACTUAL DIRECTAMENTE
+    if (action === "set_current" && typeof memberId === "number") {
+      const idx = state.members.findIndex((m) => m.id === memberId);
+      if (idx !== -1) {
+        state.currentIndex = idx;
+      }
+
+      const totalSpent = state.history.reduce((sum, h) => sum + (h.amount || 0), 0);
+      return NextResponse.json({
+        success: true,
+        message: `Turno asignado directamente a ${state.members[state.currentIndex]?.name}`,
+        members: state.members,
+        currentMember: state.members[state.currentIndex],
+        nextMember: state.members[getNextActiveIndex(state.currentIndex, state.members)],
+        history: state.history.slice(0, 5),
+        totalSpent,
+      });
+    }
+
+    // 5. MOVER INTEGRANTE EN LA FILA (IZQUIERDA O DERECHA)
+    if (action === "move_member" && typeof memberId === "number") {
+      const { direction = "right" } = body;
+      const index = state.members.findIndex((m) => m.id === memberId);
+      const currentMemberId = state.members[state.currentIndex]?.id;
+
+      if (index !== -1) {
+        const targetIndex = direction === "left" ? index - 1 : index + 1;
+        if (targetIndex >= 0 && targetIndex < state.members.length) {
+          // Intercambiar posiciones
+          const temp = state.members[index];
+          state.members[index] = state.members[targetIndex];
+          state.members[targetIndex] = temp;
+
+          // Mantener el puntero del turno actual en la persona correcta
+          const newCurrentIdx = state.members.findIndex((m) => m.id === currentMemberId);
+          state.currentIndex = newCurrentIdx !== -1 ? newCurrentIdx : 0;
+        }
+      }
+
+      const totalSpent = state.history.reduce((sum, h) => sum + (h.amount || 0), 0);
+      return NextResponse.json({
+        success: true,
+        members: state.members,
+        currentMember: state.members[state.currentIndex],
+        nextMember: state.members[getNextActiveIndex(state.currentIndex, state.members)],
+        history: state.history.slice(0, 5),
+        totalSpent,
+      });
+    }
+
+    // 6. AGREGAR NUEVO INTEGRANTE
+    if (action === "add_member") {
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      if (name) {
+        const newMember: Member = {
+          id: Date.now(),
+          name,
+          isActive: true,
+        };
+        state.members.push(newMember);
+      }
+
+      const totalSpent = state.history.reduce((sum, h) => sum + (h.amount || 0), 0);
+      return NextResponse.json({
+        success: true,
+        members: state.members,
+        currentMember: state.members[state.currentIndex],
+        nextMember: state.members[getNextActiveIndex(state.currentIndex, state.members)],
+        history: state.history.slice(0, 5),
+        totalSpent,
+      });
+    }
+
+    // 7. ELIMINAR INTEGRANTE
+    if (action === "remove_member" && typeof memberId === "number" && state.members.length > 2) {
+      state.members = state.members.filter((m) => m.id !== memberId);
+      if (state.currentIndex >= state.members.length) {
+        state.currentIndex = 0;
+      }
+
+      const totalSpent = state.history.reduce((sum, h) => sum + (h.amount || 0), 0);
+      return NextResponse.json({
+        success: true,
+        members: state.members,
+        currentMember: state.members[state.currentIndex],
+        nextMember: state.members[getNextActiveIndex(state.currentIndex, state.members)],
+        history: state.history.slice(0, 5),
+        totalSpent,
+      });
+    }
+
     return NextResponse.json({ error: "Acción no reconocida" }, { status: 400 });
   } catch (error) {
     console.error("Error en API de turnos:", error);
