@@ -246,12 +246,8 @@ export default function Home() {
         {/* HEADER SUPERIOR */}
         <header className="card-modern rounded-2xl px-5 py-3.5 mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="relative w-11 h-11 rounded-2xl overflow-hidden shadow-md shadow-blue-500/15 border border-blue-100 flex items-center justify-center bg-white p-1">
-              <img
-                src="/water-cooler.jpg"
-                alt="Compras e Insumos"
-                className="w-full h-full object-contain"
-              />
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white font-bold text-xl shadow-md shadow-blue-500/20">
+              🛒
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -291,14 +287,7 @@ export default function Home() {
           {/* COLUMNA IZQUIERDA: HERO CARD DEL TURNO ACTUAL */}
           <section className="lg:col-span-7 flex flex-col gap-6">
             <div className="card-modern relative overflow-hidden rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-white via-blue-50/20 to-sky-50/40 border-blue-100">
-              {/* Ilustración 3D flotante */}
-              <div className="hidden sm:block absolute right-4 -top-2 w-44 h-44 opacity-90 pointer-events-none animate-float">
-                <img
-                  src="/water-cooler.jpg"
-                  alt="3D Office Purchases"
-                  className="w-full h-full object-contain drop-shadow-xl"
-                />
-              </div>
+
 
               {/* Tag de Encabezado */}
               <div className="flex items-center justify-between mb-4">
