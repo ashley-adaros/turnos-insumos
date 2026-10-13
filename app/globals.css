@@ -15,37 +15,27 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Efecto de degradado suave y limpio para fondo claro */
-.bg-subtle-mesh {
+/* Sutil textura ambiental ultra-limpia */
+.bg-canvas {
   background-color: #f8fafc;
   background-image: 
-    radial-gradient(at 0% 0%, rgba(224, 242, 254, 0.7) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(238, 242, 255, 0.7) 0px, transparent 50%),
-    radial-gradient(at 50% 100%, rgba(240, 249, 255, 0.6) 0px, transparent 50%);
+    radial-gradient(at 0% 0%, rgba(241, 245, 249, 1) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(238, 242, 255, 0.6) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(240, 249, 255, 0.5) 0px, transparent 50%);
 }
 
-/* Tarjeta moderna con elevación y borde suave */
-.card-modern {
+/* Tarjetas refinadas con acabado de diseño moderno */
+.card-premium {
   background: #ffffff;
   border: 1px solid rgba(226, 232, 240, 0.9);
-  box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.04), 0 4px 6px -2px rgba(15, 23, 42, 0.02);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
 }
 
-.card-modern-hover {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+.card-premium-hover {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.card-modern-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 20px 35px -8px rgba(15, 23, 42, 0.08);
-  border-color: rgba(186, 230, 253, 0.9);
-}
-
-/* Animación sutil de pulso y flotación */
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-6px); }
-}
-
-.animate-float {
-  animation: float 4s ease-in-out infinite;
+.card-premium-hover:hover {
+  border-color: rgba(148, 163, 184, 0.6);
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  transform: translateY(-1px);
 }

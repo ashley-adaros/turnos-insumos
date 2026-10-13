@@ -22,42 +22,22 @@ interface TurnData {
   history: PurchaseRecord[];
 }
 
-// Estilos de diseño para avatares individuales
-const MEMBER_STYLES: Record<string, { gradient: string; lightBg: string; text: string }> = {
-  Fanny: {
-    gradient: "from-fuchsia-500 via-pink-500 to-rose-400",
-    lightBg: "bg-pink-50 text-pink-700 border-pink-200",
-    text: "text-pink-600",
-  },
-  Roberto: {
-    gradient: "from-blue-600 via-sky-500 to-cyan-400",
-    lightBg: "bg-blue-50 text-blue-700 border-blue-200",
-    text: "text-blue-600",
-  },
-  Erick: {
-    gradient: "from-amber-500 via-orange-500 to-yellow-400",
-    lightBg: "bg-orange-50 text-orange-700 border-orange-200",
-    text: "text-orange-600",
-  },
-  Ingrid: {
-    gradient: "from-emerald-500 via-teal-500 to-cyan-400",
-    lightBg: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    text: "text-emerald-600",
-  },
-  Alejandro: {
-    gradient: "from-indigo-600 via-violet-500 to-purple-400",
-    lightBg: "bg-indigo-50 text-indigo-700 border-indigo-200",
-    text: "text-indigo-600",
-  },
+// Paleta de colores armoniosa para los avatares
+const MEMBER_COLORS: Record<string, { bg: string; text: string; ring: string }> = {
+  Fanny: { bg: "bg-pink-100 text-pink-700", ring: "ring-pink-300", text: "text-pink-600" },
+  Roberto: { bg: "bg-blue-100 text-blue-700", ring: "ring-blue-300", text: "text-blue-600" },
+  Erick: { bg: "bg-amber-100 text-amber-700", ring: "ring-amber-300", text: "text-amber-600" },
+  Ingrid: { bg: "bg-emerald-100 text-emerald-700", ring: "ring-emerald-300", text: "text-emerald-600" },
+  Alejandro: { bg: "bg-indigo-100 text-indigo-700", ring: "ring-indigo-300", text: "text-indigo-600" },
 };
 
-// Categorías de compras habituales de oficina
-const PURCHASE_PRESETS = [
-  { id: "agua", label: "Bidón de Agua 20L", icon: "💧", badge: "bg-cyan-50 text-cyan-800 border-cyan-200" },
-  { id: "cafe", label: "Café, Té & Azúcar", icon: "☕", badge: "bg-amber-50 text-amber-800 border-amber-200" },
-  { id: "limpieza", label: "Aseo & Limpieza", icon: "🧻", badge: "bg-emerald-50 text-emerald-800 border-emerald-200" },
-  { id: "snacks", label: "Snacks & Desayuno", icon: "🍪", badge: "bg-orange-50 text-orange-800 border-orange-200" },
-  { id: "papeleria", label: "Papelería & Oficina", icon: "📦", badge: "bg-indigo-50 text-indigo-800 border-indigo-200" },
+// Categorías de compras organizadas como tarjetas interactivas
+const PURCHASE_CATEGORIES = [
+  { id: "agua", name: "Bidón de Agua", detail: "20 Litros", icon: "💧" },
+  { id: "cafe", name: "Café & Azúcar", detail: "Despensa y té", icon: "☕" },
+  { id: "limpieza", name: "Aseo & Baño", detail: "Papel y jabón", icon: "🧻" },
+  { id: "snacks", name: "Snacks & Fruta", detail: "Desayuno", icon: "🍪" },
+  { id: "general", name: "Insumos Oficina", detail: "Papelería", icon: "📦" },
 ];
 
 export default function Home() {
@@ -70,10 +50,10 @@ export default function Home() {
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [selectedItem, setSelectedItem] = useState("Bidón de Agua 20L");
+  const [selectedCategory, setSelectedCategory] = useState("Bidón de Agua (20 Litros)");
   const [customItem, setCustomItem] = useState("");
-  const [showCustomInput, setShowCustomInput] = useState(false);
-  const [feedback, setFeedback] = useState<{ msg: string; type: "success" | "info" | "error" } | null>(null);
+  const [isCustom, setIsCustom] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "info" | "error" } | null>(null);
 
   const fetchData = async () => {
     try {
@@ -94,16 +74,16 @@ export default function Home() {
   }, []);
 
   const showToast = (msg: string, type: "success" | "info" | "error" = "success") => {
-    setFeedback({ msg, type });
-    setTimeout(() => setFeedback(null), 4000);
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 4000);
   };
 
-  // Registrar compra (rotación de turno con insumo dinámico)
+  // Registrar compra (rotación de turno)
   const handleRegisterPurchase = async () => {
     if (submitting) return;
     setSubmitting(true);
 
-    const finalItem = showCustomInput && customItem.trim() ? customItem.trim() : selectedItem;
+    const finalItem = isCustom && customItem.trim() ? customItem.trim() : selectedCategory;
 
     try {
       const res = await fetch("/api/turnos", {
@@ -119,10 +99,10 @@ export default function Home() {
           nextMember: json.nextMember,
           history: json.history,
         }));
-        showToast(`🛍️ ¡Compra de "${finalItem}" registrada! Próximo turno: ${json.nextMember?.name}`, "success");
-        if (showCustomInput) {
+        showToast(`¡Compra de "${finalItem}" registrada! Próximo turno: ${json.nextMember?.name}`, "success");
+        if (isCustom) {
           setCustomItem("");
-          setShowCustomInput(false);
+          setIsCustom(false);
         }
       }
     } catch {
@@ -149,7 +129,7 @@ export default function Home() {
           currentMember: json.currentMember,
           nextMember: json.nextMember,
         }));
-        showToast("⏭️ Turno saltado. Ahora le toca a " + json.currentMember?.name, "info");
+        showToast("Turno saltado al siguiente compañero: " + json.currentMember?.name, "info");
       }
     } catch {
       showToast("Error al saltar turno", "error");
@@ -178,7 +158,7 @@ export default function Home() {
         const target = json.members.find((m: Member) => m.id === id);
         showToast(
           target?.isActive
-            ? `🟢 ${target.name} disponible para compras`
+            ? `🟢 ${target.name} disponible para turnos`
             : `🏖️ ${target.name} en vacaciones (se saltará su turno)`,
           "info"
         );
@@ -188,91 +168,85 @@ export default function Home() {
     }
   };
 
+  const getInitials = (name?: string) => (name ? name.slice(0, 2).toUpperCase() : "--");
+
   const getItemIcon = (itemName: string) => {
     const lower = itemName.toLowerCase();
     if (lower.includes("agua") || lower.includes("bidón")) return "💧";
-    if (lower.includes("café") || lower.includes("té") || lower.includes("azúcar")) return "☕";
+    if (lower.includes("café") || lower.includes("azúcar") || lower.includes("té")) return "☕";
     if (lower.includes("limpieza") || lower.includes("aseo") || lower.includes("papel")) return "🧻";
-    if (lower.includes("snack") || lower.includes("gallet") || lower.includes("desayuno")) return "🍪";
+    if (lower.includes("snack") || lower.includes("fruta") || lower.includes("desayuno")) return "🍪";
     return "📦";
   };
 
-  const getInitials = (name?: string) => (name ? name.slice(0, 2).toUpperCase() : "--");
-
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 text-slate-800 flex items-center justify-center p-4">
+      <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3">
-          <div className="relative">
-            <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin" />
-            <div className="absolute inset-0 flex items-center justify-center text-sm">🛍️</div>
-          </div>
-          <p className="text-sm text-slate-500 font-medium tracking-wide">Cargando turnos de compras...</p>
+          <div className="w-10 h-10 rounded-full border-3 border-blue-600 border-t-transparent animate-spin" />
+          <p className="text-sm text-slate-500 font-medium">Cargando sistema de compras...</p>
         </div>
       </main>
     );
   }
 
-  const currentStyle = (data.currentMember && MEMBER_STYLES[data.currentMember.name]) || {
-    gradient: "from-blue-600 to-cyan-500",
-    lightBg: "bg-blue-50 text-blue-700 border-blue-200",
-    text: "text-blue-600",
-  };
+  const activeCount = data.members.filter((m) => m.isActive).length;
+  const currentItemLabel = isCustom && customItem.trim() ? customItem.trim() : selectedCategory;
 
   return (
-    <div className="min-h-screen bg-subtle-mesh text-slate-900 py-6 px-4 sm:px-6 lg:px-8 flex flex-col justify-between">
+    <div className="min-h-screen bg-canvas py-8 px-4 sm:px-6 lg:px-8 flex flex-col justify-between">
       {/* Toast Flotante */}
-      {feedback && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] transition-all animate-bounce">
+      {toast && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] transition-all">
           <div
-            className={`px-4 py-3 rounded-2xl border backdrop-blur-md flex items-center gap-3 shadow-xl ${
-              feedback.type === "success"
-                ? "bg-white/95 border-emerald-300 text-emerald-900 shadow-emerald-500/10"
-                : feedback.type === "info"
-                ? "bg-white/95 border-blue-300 text-blue-900 shadow-blue-500/10"
-                : "bg-white/95 border-rose-300 text-rose-900 shadow-rose-500/10"
+            className={`px-4 py-3 rounded-2xl border shadow-xl flex items-center gap-3 bg-white ${
+              toast.type === "success"
+                ? "border-emerald-300 text-emerald-900"
+                : toast.type === "info"
+                ? "border-blue-300 text-blue-900"
+                : "border-rose-300 text-rose-900"
             }`}
           >
             <span className="text-xl">
-              {feedback.type === "success" ? "🛒" : feedback.type === "info" ? "ℹ️" : "⚠️"}
+              {toast.type === "success" ? "✅" : toast.type === "info" ? "ℹ️" : "⚠️"}
             </span>
-            <span className="text-sm font-semibold">{feedback.msg}</span>
+            <span className="text-sm font-semibold">{toast.msg}</span>
           </div>
         </div>
       )}
 
-      {/* Contenedor Centrado */}
+      {/* Contenedor Principal */}
       <div className="max-w-6xl mx-auto w-full">
         {/* HEADER SUPERIOR */}
-        <header className="card-modern rounded-2xl px-5 py-3.5 mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white font-bold text-xl shadow-md shadow-blue-500/20">
-              🛒
+        <header className="card-premium rounded-2xl p-4 sm:p-5 mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 text-lg font-black">
+              🛍️
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-black tracking-tight text-slate-900">
-                  Turnos de Compras & Insumos
+                <h1 className="text-lg font-bold text-slate-900 tracking-tight leading-none">
+                  HydroTurn
                 </h1>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                  Oficina
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                  Control de Compras & Insumos
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
-                Rotación justa para agua, café, despensa, limpieza y compras generales
+              <p className="text-xs text-slate-500 mt-1">
+                Rotación justa para agua, café, despensa, limpieza y suministros de oficina
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs font-semibold text-slate-700">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>{data.members.filter((m) => m.isActive).length} de {data.members.length} disponibles</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>{activeCount} de {data.members.length} miembros activos</span>
             </div>
 
             <button
               onClick={fetchData}
-              title="Refrescar datos"
+              title="Actualizar datos"
               className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 transition cursor-pointer"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -282,101 +256,105 @@ export default function Home() {
           </div>
         </header>
 
-        {/* GRID PRINCIPAL */}
+        {/* CUERPO DEL DASHBOARD (GRID) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* COLUMNA IZQUIERDA: HERO CARD DEL TURNO ACTUAL */}
+          {/* COLUMNA IZQUIERDA: HERO CARD (TURNO ACTUAL Y ACCIONES) */}
           <section className="lg:col-span-7 flex flex-col gap-6">
-            <div className="card-modern relative overflow-hidden rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-white via-blue-50/20 to-sky-50/40 border-blue-100">
+            <div className="card-premium rounded-3xl p-6 sm:p-7 relative overflow-hidden">
+              {/* Encabezado del Hero */}
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                  <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                  TURNO ACTUAL DE COMPRA
+                </div>
 
-
-              {/* Tag de Encabezado */}
-              <div className="flex items-center justify-between mb-4">
-                <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-black tracking-wider uppercase bg-blue-600 text-white shadow-md shadow-blue-500/25">
-                  <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                  Turno Actual de Compra
-                </span>
-
-                <span className="text-xs text-slate-400 font-semibold capitalize bg-white/80 px-3 py-1 rounded-full border border-slate-200">
-                  {new Date().toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })}
+                <span className="text-xs font-medium text-slate-400 capitalize">
+                  {new Date().toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "short" })}
                 </span>
               </div>
 
-              {/* Avatar + Nombre Grande */}
-              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 my-3 text-center sm:text-left relative z-10">
-                <div className="relative group">
-                  <div
-                    className={`w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-tr ${currentStyle.gradient} p-1 shadow-xl shadow-blue-500/15 flex items-center justify-center transition-transform duration-300 group-hover:scale-105`}
-                  >
-                    <div className="w-full h-full rounded-[22px] bg-white/25 backdrop-blur-xs flex items-center justify-center">
-                      <span className="text-3xl sm:text-4xl font-black text-white tracking-wider drop-shadow-md">
+              {/* Perfil del Responsable Actual */}
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 py-6">
+                {/* Avatar Circular con iniciales */}
+                <div className="relative">
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 p-0.5 shadow-lg shadow-blue-500/15 flex items-center justify-center">
+                    <div className="w-full h-full rounded-[14px] bg-white flex items-center justify-center">
+                      <span className="text-2xl sm:text-3xl font-black text-slate-900 tracking-wider">
                         {getInitials(data.currentMember?.name)}
                       </span>
                     </div>
                   </div>
-                  <div className="absolute -bottom-2 -right-2 px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider shadow-md">
+                  <span className="absolute -bottom-2 -right-1 px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[10px] font-extrabold uppercase shadow-sm">
                     Le toca
-                  </div>
+                  </span>
                 </div>
 
-                <div className="flex-1">
+                {/* Información y Nombre */}
+                <div className="flex-1 text-center sm:text-left">
                   <span className="text-xs uppercase font-extrabold tracking-wider text-slate-400 block mb-1">
-                    Responsable de la próxima compra
+                    Responsable de la compra
                   </span>
-                  <h2 className="text-4xl sm:text-6xl font-black text-slate-900 tracking-tight capitalize leading-none">
+                  <h2 className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight capitalize leading-none">
                     {data.currentMember?.name ?? "Sin Asignar"}
                   </h2>
 
-                  {/* Próximo Turno Pill */}
-                  <div className="mt-3 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-700 shadow-xs">
-                    <span className="text-slate-500 font-medium">Siguiente en la lista:</span>
-                    <strong className="text-slate-900 font-extrabold flex items-center gap-1.5">
+                  {/* Próximo turno en línea */}
+                  <div className="mt-3.5 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
+                    <span className="text-slate-400">Próximo en turno:</span>
+                    <strong className="text-slate-900 font-bold flex items-center gap-1">
                       <span>{data.nextMember?.name ?? "N/A"}</span>
-                      <span className="text-blue-600 font-bold">→</span>
+                      <span className="text-blue-600">→</span>
                     </strong>
                   </div>
                 </div>
               </div>
 
-              {/* SELECTOR INTERACTIVO DE INSUMO A COMPRAR */}
-              <div className="mt-6 pt-5 border-t border-slate-200/80">
-                <div className="flex items-center justify-between mb-2.5">
-                  <label className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                    <span>🛍️ Selecciona qué se va a comprar:</span>
-                  </label>
+              {/* SELECTOR DE INSUMO A COMPRAR */}
+              <div className="pt-5 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    ¿Qué se va a comprar en este turno?
+                  </span>
                   <button
-                    onClick={() => setShowCustomInput(!showCustomInput)}
-                    className="text-[11px] text-blue-600 font-bold hover:underline cursor-pointer"
+                    onClick={() => setIsCustom(!isCustom)}
+                    className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
                   >
-                    {showCustomInput ? "Usar lista rápida" : "+ Otro insumo"}
+                    {isCustom ? "Volver a lista" : "+ Escribir otro"}
                   </button>
                 </div>
 
-                {showCustomInput ? (
+                {isCustom ? (
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="Ej: Café descafeinado, toallas de papel, té..."
+                      placeholder="Ej: Toallas de papel, té gourmet, pilas..."
                       value={customItem}
                       onChange={(e) => setCustomItem(e.target.value)}
-                      className="flex-1 px-3.5 py-2.5 rounded-xl border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm text-slate-800"
+                      className="flex-1 px-4 py-2.5 rounded-xl border border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm text-slate-900 font-medium"
                     />
                   </div>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {PURCHASE_PRESETS.map((preset) => {
-                      const isSelected = selectedItem === preset.label;
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                    {PURCHASE_CATEGORIES.map((cat) => {
+                      const label = `${cat.name} (${cat.detail})`;
+                      const isSelected = selectedCategory === label;
                       return (
                         <button
-                          key={preset.id}
-                          onClick={() => setSelectedItem(preset.label)}
-                          className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                          key={cat.id}
+                          onClick={() => setSelectedCategory(label)}
+                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                             isSelected
-                              ? "bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-500/25 scale-[1.02]"
-                              : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                              ? "bg-blue-50 border-blue-500 shadow-sm shadow-blue-500/10"
+                              : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/70"
                           }`}
                         >
-                          <span>{preset.icon}</span>
-                          <span>{preset.label}</span>
+                          <span className="text-lg block mb-0.5">{cat.icon}</span>
+                          <span className={`text-xs font-bold block leading-tight ${isSelected ? "text-blue-900" : "text-slate-900"}`}>
+                            {cat.name}
+                          </span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
+                            {cat.detail}
+                          </span>
                         </button>
                       );
                     })}
@@ -384,53 +362,49 @@ export default function Home() {
                 )}
               </div>
 
-              {/* SECUENCIA DE ROTACIÓN (FILA DE 5 INTEGRANTES) */}
-              <div className="mt-6 pt-5 border-t border-slate-200/80">
+              {/* FILA DE TURNOS (ORDEN DE ROTACIÓN) */}
+              <div className="mt-5 pt-5 border-t border-slate-100">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
-                    Fila de Turnos
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Fila de Turnos del Equipo
                   </span>
-                  <span className="text-xs text-slate-400 font-medium">Secuencia de rotación</span>
+                  <span className="text-xs text-slate-400">Orden de rotación</span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                   {data.members.map((m, idx) => {
                     const isCurrent = m.id === data.currentMember?.id;
                     const isNext = m.id === data.nextMember?.id;
-                    const style = MEMBER_STYLES[m.name] || currentStyle;
+                    const colors = MEMBER_COLORS[m.name] || { bg: "bg-slate-100 text-slate-700", text: "text-slate-700" };
 
                     return (
                       <div
                         key={m.id}
-                        className={`p-3 rounded-2xl border text-center transition-all ${
+                        className={`p-3 rounded-xl border text-center transition-all ${
                           isCurrent
-                            ? "bg-blue-50 border-2 border-blue-500 shadow-md shadow-blue-500/15"
+                            ? "bg-blue-50/70 border-blue-500 shadow-xs"
                             : isNext
-                            ? "bg-white border-blue-200 shadow-xs"
+                            ? "bg-white border-blue-200 shadow-2xs"
                             : !m.isActive
-                            ? "bg-rose-50/70 border-rose-200 opacity-70"
+                            ? "bg-slate-50 border-slate-200 opacity-60"
                             : "bg-white border-slate-200"
                         }`}
                       >
                         <div className="flex items-center justify-center mb-1.5">
-                          <span
-                            className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black text-white bg-gradient-to-tr ${style.gradient} shadow-xs`}
-                          >
+                          <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black ${colors.bg}`}>
                             {getInitials(m.name)}
                           </span>
                         </div>
-                        <div className="text-xs font-extrabold text-slate-900 truncate">
+                        <div className="text-xs font-bold text-slate-900 truncate">
                           {m.name}
                         </div>
-                        <div className="text-[10px] font-bold mt-1">
+                        <div className="text-[10px] font-semibold mt-1">
                           {isCurrent ? (
-                            <span className="text-blue-700 bg-blue-100/70 px-1.5 py-0.5 rounded-md">
-                              ● Actual
-                            </span>
+                            <span className="text-blue-700 font-bold">● Actual</span>
                           ) : isNext ? (
                             <span className="text-blue-600">Siguiente</span>
                           ) : !m.isActive ? (
-                            <span className="text-rose-600">Vacaciones</span>
+                            <span className="text-rose-600 font-medium">🏖️ Ausente</span>
                           ) : (
                             <span className="text-slate-400">#{idx + 1}</span>
                           )}
@@ -442,75 +416,71 @@ export default function Home() {
               </div>
 
               {/* BOTONES DE ACCIÓN */}
-              <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                {/* Botón Principal Destacado */}
+              <div className="mt-6 pt-5 border-t border-slate-100 flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleRegisterPurchase}
                   disabled={submitting}
-                  className="flex-1 h-15 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 active:scale-[0.98] text-white font-black text-base sm:text-lg shadow-xl shadow-blue-500/25 transition-all flex items-center justify-center gap-3 disabled:opacity-50 cursor-pointer"
+                  className="flex-1 h-14 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {submitting ? (
-                    <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" />
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <>
-                      <span>Registrar Compra ({showCustomInput && customItem ? customItem : selectedItem})</span>
-                      <span className="text-xl">🛒</span>
+                      <span>Registrar Compra: {currentItemLabel.split("(")[0]}</span>
+                      <span>🛒</span>
                     </>
                   )}
                 </button>
 
-                {/* Botón Saltar Turno */}
                 <button
                   onClick={handleSkipTurn}
                   disabled={submitting}
-                  title="Saltar si el usuario está ausente hoy"
-                  className="h-15 px-5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-300 active:scale-[0.98] text-slate-700 hover:text-slate-900 font-bold text-sm shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  title="Saltar turno si la persona no se encuentra hoy"
+                  className="h-14 px-5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 active:scale-[0.99] text-slate-700 hover:text-slate-900 font-semibold text-xs sm:text-sm shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   <span>Saltar turno</span>
-                  <span className="text-base">⏭️</span>
+                  <span>⏭️</span>
                 </button>
               </div>
             </div>
           </section>
 
-          {/* COLUMNA DERECHA: DISPONIBILIDAD Y HISTORIAL */}
+          {/* COLUMNA DERECHA: EQUIPO Y HISTORIAL */}
           <section className="lg:col-span-5 flex flex-col gap-6">
             {/* TARJETA 1: DISPONIBILIDAD DEL EQUIPO */}
-            <div className="card-modern rounded-3xl p-6">
+            <div className="card-premium rounded-3xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight">
                     Disponibilidad del Equipo
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-slate-500">
                     Marca compañeros ausentes o de vacaciones
                   </p>
                 </div>
-                <span className="text-xs px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 font-extrabold">
+                <span className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold">
                   {data.members.length} miembros
                 </span>
               </div>
 
-              <div className="flex flex-col gap-2.5">
+              <div className="flex flex-col gap-2">
                 {data.members.map((member) => {
-                  const style = MEMBER_STYLES[member.name] || currentStyle;
+                  const colors = MEMBER_COLORS[member.name] || { bg: "bg-slate-100 text-slate-700" };
 
                   return (
                     <div
                       key={member.id}
-                      className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/80 border border-slate-200 hover:bg-white transition"
+                      className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/70 border border-slate-200/80 hover:bg-white transition"
                     >
                       <div className="flex items-center gap-3">
-                        <span
-                          className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black text-white bg-gradient-to-tr ${style.gradient} shadow-xs`}
-                        >
+                        <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold ${colors.bg}`}>
                           {getInitials(member.name)}
                         </span>
                         <div>
                           <span className={`text-sm font-bold block ${member.isActive ? "text-slate-900" : "text-slate-400 line-through"}`}>
                             {member.name}
                           </span>
-                          <span className="text-[11px] font-medium text-slate-500">
+                          <span className="text-[11px] text-slate-500">
                             {member.isActive ? "🟢 En oficina" : "🏖️ Vacaciones"}
                           </span>
                         </div>
@@ -518,10 +488,10 @@ export default function Home() {
 
                       <button
                         onClick={() => handleToggleMember(member.id)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
                           member.isActive
-                            ? "bg-white border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900 shadow-xs"
-                            : "bg-rose-50 border-rose-300 text-rose-700 hover:bg-rose-100"
+                            ? "bg-white border-slate-200 text-slate-700 hover:bg-slate-100 shadow-2xs"
+                            : "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100"
                         }`}
                       >
                         {member.isActive ? "Marcar Ausente" : "Reactivar"}
@@ -532,18 +502,18 @@ export default function Home() {
               </div>
             </div>
 
-            {/* TARJETA 2: HISTORIAL DE ÚLTIMAS 3 COMPRAS */}
-            <div className="card-modern rounded-3xl p-6">
+            {/* TARJETA 2: HISTORIAL DE COMPRAS */}
+            <div className="card-premium rounded-3xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight">
                     Historial de Compras
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-slate-500">
                     Últimas 3 compras registradas
                   </p>
                 </div>
-                <span className="text-xs px-2.5 py-1 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 font-extrabold">
+                <span className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-bold">
                   Registro
                 </span>
               </div>
@@ -557,14 +527,14 @@ export default function Home() {
                   data.history.map((record, index) => (
                     <div
                       key={record.id}
-                      className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200 hover:bg-white transition"
+                      className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/80 hover:bg-white transition"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white border border-slate-200 text-base shadow-xs">
+                        <span className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-base shadow-2xs">
                           {getItemIcon(record.item)}
                         </span>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <span className="text-sm font-bold text-slate-900">
                               {record.buyerName}
                             </span>
@@ -592,11 +562,11 @@ export default function Home() {
         </div>
 
         {/* FOOTER */}
-        <footer className="mt-8 pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 text-center">
-          <p>© {new Date().getFullYear()} HydroTurn • Sistema de Compras & Turnos de Oficina</p>
+        <footer className="mt-8 pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 text-center">
+          <p>© {new Date().getFullYear()} HydroTurn • Sistema de Compras de Oficina</p>
           <p className="flex items-center gap-1.5">
-            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-            Webhook Telegram / WhatsApp preparado para alertas grupales
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            Webhook Telegram / WhatsApp preparado para alertas
           </p>
         </footer>
       </div>
